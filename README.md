@@ -1,92 +1,56 @@
-# Traffic sign Detection System 
+# Traffic-Sign Classification with PySpark and YOLOv8
 
-This project implements a traffic sign detection system using the Mapillary Traffic Sign Dataset and the DFG Traffic Sign Dataset. The pipeline integrates Big Data preprocessing with Apache Spark (MapReduce) and deep learning with YOLOv5 to build a scalable, real-world traffic sign detection model. The work was developed as part of a university assignment focusing on MapReduce, visualization, and object detection.
+An academic computer-vision pipeline that converts traffic-sign annotations into a classification dataset, then trains and evaluates a 76-class YOLOv8 model.
 
+**Recorded test result:** 86.56% top-1 and 99.60% top-5 accuracy on 4,718 cropped signs. These scores measure classification of supplied sign crops; full-image detection was not evaluated.
 
-### Overview
-- **Goal**: Build a traffic sign classifier from object detection annotations by converting bounding boxes into class-specific image crops and training a YOLOv8 classification model.
-- **Approach**: PySpark for scalable XML parsing and image cropping; Ultralytics YOLOv8n-cls for training and evaluation.
-- **Result**: 76-class classifier achieving ~**86.6% top-1** and ~**99.6% top-5** accuracy on the test split after 5 epochs on CPU.
+## Implementation
 
-### Dataset
-- **Source**: Kaggle `nomihsa965/traffic-signs-dataset-mapillary-and-dfg` (via `kagglehub`).
-- **Size**: ~11.6 GB download.
-- **Contents discovered**:
-  - 19,346 XML annotation files
-  - 49,905 images
-  - 30,557 valid labeled object instances after filtering
+1. Download Mapillary/DFG data from Kaggle with `kagglehub`.
+2. Parse XML annotations with PySpark RDDs and filter invalid bounding boxes.
+3. Aggregate class counts, attach image paths and split by source-image key using a deterministic hash.
+4. Crop annotated objects to 224 × 224 RGB images using partition-level processing.
+5. Fine-tune `yolov8n-cls.pt` for five epochs on CPU.
+6. Evaluate validation/test splits, generate predictions and export run metadata.
 
-### Pipeline
-1. Download dataset using `kagglehub`.
-2. Parse PASCAL-VOC-style XML annotations with PySpark into records: `(image_filename, class, bbox, image_wh)`.
-3. Validate and filter records (bbox bounds and positive image dimensions).
-4. Join image paths and compute deterministic train/val/test split via MD5 hash of the image key.
-5. Crop each bounding box to a 224×224 RGB JPEG and save under split/class directories.
-6. Train YOLOv8n-cls on the generated classification dataset.
-7. Evaluate on validation and test splits; export sample predictions and run metadata.
+## Saved-run results
 
-Generated dataset structure (created by the notebook):
-- `./data_cls/train/<class>/*.jpg`
-- `./data_cls/val/<class>/*.jpg`
-- `./data_cls/test/<class>/*.jpg`
+| Split | Images | Top-1 accuracy | Top-5 accuracy |
+|---|---:|---:|---:|
+| Training | 21,250 | — | — |
+| Validation | 4,589 | 86.49% | 99.69% |
+| Test | 4,718 | 86.56% | 99.60% |
 
-Split sizes detected by YOLO during training:
-- **Train**: 21,250 images across 76 classes
-- **Val**: 4,589 images across 76 classes
-- **Test**: 4,718 images across 76 classes
+The saved run uses 76 classes and 30,557 prepared crops. Results come from the notebook outputs and have not been independently rerun for this documentation update.
 
-### Model and Training
-- **Base model**: `yolov8n-cls.pt` (Ultralytics)
-- **Image size**: 224
-- **Epochs**: 5 (demo setting; increase for better accuracy)
-- **Device**: CPU (GPU recommended for speed and improved performance)
-- **Environment (observed)**:
-  - Ultralytics: 8.3.207
-  - PyTorch: 2.8.0
-  - PySpark: 3.5.1
-  - Python: 3.12.11
+## Run the notebook
 
-### Results
-- **Validation**: top-1 ≈ 0.865, top-5 ≈ 0.997
-- **Test**: top-1 ≈ 0.866, top-5 ≈ 0.996
-- **Example predictions (on 224×224 crops)**:
-  - `warning--curve-right 0.69`
-  - `regulatory--keep-right 0.71`
-  - `regulatory--maximum-speed-limit 0.99`
+Open [MIT_805_Merhawi_Hailu_Road_sign_detection.ipynb](MIT_805_Merhawi_Hailu_Road_sign_detection.ipynb) in Jupyter or Google Colab and run its cells in order.
 
-Artifacts produced:
-- Ultralytics run directories under `runs/classify/...` (e.g., `train`, `val`, `val2`).
-- Prepared dataset at `./data_cls`.
-- Metadata at `./artifacts/run_info.json` (data root and last run path).
-
-### Quickstart
 ```bash
-# 1) Environment
 pip install kagglehub pyspark ultralytics pillow pandas scikit-learn
-
-# 2) Execute the notebook end-to-end (downloads ~11.6GB)
-#    - Downloads dataset (kagglehub)
-#    - Builds classification dataset with Spark
-#    - Trains YOLOv8n-cls for 5 epochs
-#    - Evaluates and writes artifacts
-
-# 3) After training, metrics and run directories are printed
-#    Ultralytics runs live under: ./runs/classify/
 ```
 
-### Repository Layout (suggested)
-- `Road_sign_detection.ipynb`: end-to-end pipeline for data prep, training, and evaluation.
-- `data_cls/`: generated classification dataset (train/val/test by class).
-- `runs/classify/`: Ultralytics training/eval runs.
-- `artifacts/run_info.json`: metadata with pointers to data root and last run.
+A working Java runtime is required by Spark. The source download is approximately 11.6 GB; allow additional space for extracted data and crops. The notebook trains on CPU by default.
 
-### Notes and Considerations
-- The dataset is large; ensure adequate disk space and bandwidth.
-- For better accuracy, train longer and/or use a larger model (e.g., `yolov8s-cls.pt`) with a GPU.
-- Class imbalance likely exists; consider longer training, balanced sampling, or augmentation strategies.
+Observed environment: Python 3.12.11, PySpark 3.5.1, PyTorch 2.8.0 and Ultralytics 8.3.207.
 
-### References
-- Ultralytics YOLOv8: https://docs.ultralytics.com
-- Kaggle dataset: https://www.kaggle.com/datasets/nomihsa965/traffic-signs-dataset-mapillary-and-dfg
-- PySpark: https://spark.apache.org/docs/latest/api/python/
+## Files and generated outputs
 
+- `MIT_805_Merhawi_Hailu_Road_sign_detection.ipynb`: primary implementation and saved results.
+- `Machine_Translation_model_for_African_language.ipynb`: separate NLP notebook retained in this repository; see the [dedicated translation project](https://github.com/u17095736-coder/Machine-Translation-Model).
+- `data_cls/`: generated train/validation/test crop directories.
+- `runs/classify/`: generated training and evaluation outputs.
+- `artifacts/run_info.json`: generated run-location metadata.
+
+## Limitations and next steps
+
+The five-epoch run is an academic experiment. Check class imbalance, per-class errors, image-path collisions and the consistency of plotting data when reproducing the analysis. Future work includes longer training, GPU experiments and evaluation on external data.
+
+## Data and attribution
+
+- [Mapillary and DFG traffic-sign dataset on Kaggle](https://www.kaggle.com/datasets/nomihsa965/traffic-signs-dataset-mapillary-and-dfg)
+- [Ultralytics documentation](https://docs.ultralytics.com/)
+- [PySpark documentation](https://spark.apache.org/docs/latest/api/python/)
+
+Developed by **Merhawi Hailu** for MIT 805. Dataset and pretrained-model usage remain subject to their respective licences.
